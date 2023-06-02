@@ -1,0 +1,611 @@
+<!doctype html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+	<title>RL-in-E Framework</title>
+
+	<link rel="stylesheet" href="css/reset.css">
+	<link rel="stylesheet" href="css/reveal.css">
+	<link rel="stylesheet" href="css/theme/black.css">
+	<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
+		integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" crossorigin="anonymous" />
+
+
+	<!-- Theme used for syntax highlighting of code -->
+	<link rel="stylesheet" href="lib/css/monokai.css">
+
+	<!-- Printing and PDF exports -->
+	<script>
+		var link = document.createElement('link');
+		link.rel = 'stylesheet';
+		link.type = 'text/css';
+		link.href = window.location.search.match(/print-pdf/gi) ? 'css/print/pdf.css' : 'css/print/paper.css';
+		document.getElementsByTagName('head')[0].appendChild(link);
+	</script>
+</head>
+
+<body>
+	<style>
+		.reveal h1,.reveal h2,.reveal h3,.reveal h4,.reveal h5{
+			text-transform: none;
+		}
+
+		.reveal i {
+			font-family: 'FontAwesome';
+			font-style: normal;
+		}
+
+		.red {
+			color: rgb(255, 150, 150);
+		}
+
+		.green {
+			color: rgb(150, 255, 150);
+		}
+
+		.yellow {
+			color: rgb(255, 255, 123);
+		}
+
+		.blue {
+			color: rgb(150, 150, 255);
+		}
+
+		.row {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-around;
+		}
+
+		.box {
+			border: 1px solid white;
+			padding: 15px;
+			margin: 5px;
+			font-size: 24pt;
+		}
+
+		.emph {
+			font-style: italic;
+		}
+
+		.ul {
+			text-decoration: underline;
+		}
+
+		.smallfont {
+			font-size: 0.8em;
+		}
+
+		.smallerfont {
+			font-size: 0.7em;
+		}
+	</style>
+	<div class="reveal">
+		<div class="slides">
+			<section>
+				<h3>A Framework for <br>Reinforcement Learning <br>in the E Theorem Prover</h3>
+				<hr>
+				<h4>Jack McKeown</h4><br>
+				<aside class="notes">
+
+				</aside>
+			</section>
+
+			<section id="outline">
+				<h3>Outline</h3>
+				<div class="box">
+					<ol>
+						<li class="fragment">Saturation, Given Clause Selection, and E heuristics</li>
+						<li class="fragment">Reinforcement Learning and Proximal Policy Optimization</li>
+						<li class="fragment">Framework Details</li>
+						<li class="fragment">Experiments, Results, & Analysis using Framework</li>
+						<li class="fragment">Future Research</li>
+					</ol>
+				</div>
+				<aside class="notes">
+
+				</aside>
+			</section>
+
+			<section id="saturation">
+				<section>
+					<h3>"Saturation-based" Theorem Proving</h3>
+					<div style="text-align:left; font-size:0.85em;">
+						<span class="green">Saturation:</span> computing the closure of a set of statements with respect
+						to a complete set of inference rules.
+						<span class="fragment">
+							<hr>For a set consisting of axioms and the negation of an entailed conjecture, this closure
+							<span class="emph" style="text-decoration: underline;">must</span> include <span
+								class="red">false</span>
+						</span>
+						<span class="fragment">
+							<hr>A <span class="green">conjecture</span> is therefore proved by searching for the empty
+							clause by <span class="green">saturating the set $Ax\; \cup \sim C$</span>
+						</span>
+					</div>
+
+					<aside class="notes">
+
+					</aside>
+				</section>
+
+				<section id="gcs">
+					<h3>Given Clause Selection</h3>
+					<img src="images/processedAndUnprocessedSets.svg" style="background:whitesmoke">
+					<aside class="notes">
+						+ Explain given clause selection loop
+						+ Given clause selection is the most important part of saturation-based theorem proving.
+					</aside>
+				</section>
+
+				<section id="E">
+					<h3>Given Clause Selection in E</h3>
+	
+					<p style="font-size:18pt">Example Clause Evaluation Function (CEF): <span
+							class="green">Clauseweight(<span class="red">PreferGoals</span>, 1,1,1)</span></p>
+	
+					<div class="row">
+						<textarea class="fragment" cols="50" rows="7" style="overflow: hidden;">
+	Example "heuristic" in E's --auto mode:
+	
+	10 * Clauseweight(PreferGoals,1,1,1),
+	10 * Clauseweight(PreferNonGoals,1,1,1),
+	10 * Clauseweight(ByHornDist,1,1,1),
+	1 * FIFOWeight(ConstPrio)
+							</textarea>
+	
+						<textarea class="fragment" cols="50" rows="7" style="overflow: hidden;">
+	Example "heuristic" in RL mode:
+	
+	0.5 * Clauseweight(PreferGoals,1,1,1),
+	0.2 * Clauseweight(PreferNonGoals,1,1,1),
+	0.1 * Clauseweight(ByHornDist,1,1,1),
+	0.1 * FIFOWeight(ConstPrio),
+	...
+							</textarea>
+	
+					</div>
+	
+					<aside class="notes">
+						+ Clause evaluation functions
+						+ Heuristics
+						+ distribution over CEFs
+					</aside>
+	
+				</section>
+			</section>
+
+
+
+			<section>
+				<section>
+					<h3>RL / Policy Gradients</h3>
+					<ul>
+						<li class="fragment">States, Actions and Rewards</li>
+						<li class="fragment" style="line-height: 1.8em;">Policy:
+							<span class="green fragment box">$\pi(s) = a$</span>
+							<span class="green fragment box">$\sum_a \pi(s,a) = 1$</span>
+						</li>
+						<li class="fragment">Goal: <span class="green">Maximize expected future discounted
+								rewards</span></li>
+						<li class="fragment" style="line-height: 2.1em;">Policy Gradient Loss:
+							$\displaystyle\frac{1}{T}\sum_{t=1}^T [$
+							<span class="green fragment"
+								style="padding:1em 0em;font-size:0.8em;">$-\log{(\pi(s_t,a_t))}$</span>
+							<span class="fragment">
+								$\cdot $
+								<span class="blue">$R_t$</span>
+							</span>
+							$]$
+						</li>
+
+
+						<li class="fragment" style="line-height: 2.1em;">Reducing Variance:
+							$\displaystyle\frac{1}{T}\sum_{t=1}^T [$
+							<span class="green fragment"
+								style="padding:1em 0em;font-size:0.8em;">$-\log{(\pi(s_t,a_t))}$</span>
+							<span class="fragment">
+								$\cdot $
+								<span class="red">$A_t$</span>
+							</span>
+							$]$
+						</li>
+						<li class="fragment">
+							<span class="red">
+								$A_t$
+							</span>
+							$=$
+							<span class="blue">$R_t$</span> $- V(s_t)$
+						</li>
+					</ul>
+
+					<aside class="notes">
+						+ taking actions from states to obtain rewards.
+						+ PG Loss is negative log likelihood of actions times future rewards.
+						+ Subtracting baseline can help reduce the PG variance without changing the expected value.
+						+ This is called Actor-critic where the actor is the policy and the critic is the learned baseline.
+					</aside>
+				</section>
+
+				<section>
+					<h3>Proximal Policy Optimization (PPO)</h3>
+					<ul style="font-size:0.7em;">
+						<li class="fragment">Simpler successor to Trust Region Policy Optimization (TRPO)</li>
+						<li class="fragment">Main Idea: <span class="green">Learn from the same data multiple times in
+								mini-batches <br>without drastically affecting the current policy.</span></li>
+						<span class="fragment">
+							<li>A special loss limits the gradient so that 
+								<span class="green">$0.8\pi_{old}(s,a) \leq \pi(s,a) \leq 1.2\pi_{old}(s,a)$</span>
+							</li>
+							<ul>
+								<li>$r_t(\theta) = \frac{\pi_{\theta}(a_t | s_t)}{\pi_{\theta_{old}}(a_t |
+									s_t)}$</li>
+								<li>$L_{actor}(\theta) = \displaystyle\frac{1}{T}\sum_{t=1}^T [min($ 
+									<span class="green">$r_t(\theta)A_t$</span> $, $ 
+									<span class="red">$clip(r_t(\theta),1-\epsilon, 1+\epsilon)A_t$</span> $)]$
+								</li>
+							</ul>
+						</span>
+					</ul>
+					<aside class="notes">
+						+ PPO makes multiple mini-batch gradient steps from a batch of episodes.
+						+ This has potential to be problematic if the policy changes too much as the data is no longer representative.
+						+ PPO limits the magnitude of the overall policy change.
+					</aside>
+				</section>
+
+
+				<section>
+					<h3>RL in E</h3>
+					<ul>
+						<li>States:
+							<span class="green">
+								$($
+								<span class="fragment">$t$</span>,
+								<span class="fragment">$|P|$</span>,
+								<span class="fragment">$|U|$</span>,
+								<span class="fragment">$W(P)$</span>,
+								<span class="fragment">$W(U)$</span>
+								$)$
+							</span>
+						</li>
+						<li>Actions: <span class="green fragment">choice from a fixed set of
+								CEFs</span></li>
+						<li>Rewards: <span class="green fragment">selection of clauses in the
+								proof</span></li>
+					</ul>
+					<aside class="notes">
+						+ GCS --> RL Problem requires defining states,actions,rewards
+						+ State is a tuple of 5 features
+						+ Action is CEF selection.
+						+ Rewards are given for clauses selected in the proof.
+						+ If no proof is found, all rewards are zero.
+					</aside>
+
+				</section>
+			</section>
+
+
+			<section>
+				<section>
+					<h3>The Framework</h3>
+					<ol>
+						<li class="fragment">One main script for training/testing</li>
+						<li class="fragment">Terminal Dashboard for Training</li>
+						<li class="fragment">Format and Scripts for Analyzing Results</li>
+					</ol>
+				</section>
+				
+				<section>
+					<h3>The Main Training/Testing Script</h3>
+					
+					<pre><code data-trim data-noescape style="font-size:11pt;line-height: 11pt;width:100%">
+						parser = argparse.ArgumentParser()
+						parser.add_argument("--problems", default=os.path.expanduser("~/Desktop/ATP/GCS/MPTPTP2078/Bushy/Problems/"), help="path to where problems are stored")
+						parser.add_argument("--run", default="test")
+						parser.add_argument("--test", action="store_true")
+						parser.add_argument("--lunar_lander", action="store_true")
+						parser.add_argument("--auto", action="store_true")
+						parser.add_argument("--auto_sched", action="store_true")
+					
+						parser.add_argument("--lr", type=float, default=5e-5, help="learning rate for optimizer")
+						parser.add_argument("--batch_size", type=int, default=4, help="number of episodes before training")
+						parser.add_argument("--ppo_batch_size", type=int, default=128, help="Batch size for PPO updates")
+						parser.add_argument("--n_units", type=int, default=100, help="Number of units per hidden layer in the policy")
+						parser.add_argument("--n_layers", type=int, default=2, help="Number of hidden NN layers in the policy")
+						parser.add_argument("--discount_factor", type=float, default=0.998, help="discount factor for RL")
+						parser.add_argument("--LAMBDA", type=float, default=0.95, help="PPO discount for interpolating between full returns and TD estimate")
+						parser.add_argument("--epochs", type=int, default=1, help="Epochs for each PPO training phase")
+						parser.add_argument("--critic_weight", type=float, default=0.4)
+						parser.add_argument("--entropy_weight", type=float, default=4e-5)
+						parser.add_argument("--max_grad_norm", type=float, default=0.5)
+						parser.add_argument("--max_blame", type=int, default=20_000, help="Maximum number of given clause selections to punish for a failed proof attempt...")
+						
+						parser.add_argument("--load_model", action="store_true")
+						parser.add_argument("--model_path", default="latest_model.pt")
+						parser.add_argument("--opt_path", default="latest_model_opt.pt")
+						parser.add_argument("--policy_type", default="nn", choices=["nn", "constcat", "none", "uniform", "attn"])
+						
+						parser.add_argument("--state_dim", type=int, default=5)
+						parser.add_argument("--CEF_no", type=int, default=20, help="Number of cefs in cef_file")
+						parser.add_argument("--cef_file", default="cefs_auto.txt")
+					
+						parser.add_argument("--num_workers", type=int, default=1)
+						parser.add_argument("--eprover_path", default="eprover")
+						parser.add_argument("--eproverScheduleFile", default=os.path.expanduser("~/eprover/HEURISTICS/schedule.vars"))
+						parser.add_argument("--soft_cpu_limit", type=int, default=1)
+						parser.add_argument("--cpu_limit", type=int, default=2)
+					
+						parser.add_argument("--train_patience", type=int, default=1*2078, help="How many proof attempts to wait for another solved problem before stopping training.")
+						parser.add_argument("--max_train_steps", default=1e6, type=int, help="Maximum number of PPO train batches to train on.")
+						parser.add_argument("--seed", type=int, default=0)
+						args = parser.parse_args()
+					</code></pre>
+						
+				</section>
+
+				<section>
+					<h3>Dashboard</h3>
+					
+					<ul>
+						<li class="fragment">Rich Python Library</li>
+						<li class="fragment">Termplotlib for plotting</li>
+					</ul>
+				</section>
+
+				<section>
+					<h3>Terminal Dashboard (screenshot)</h3>
+					<img src="images/dashboard.png" alt="Dashboard Screenshot">
+				</section>
+
+				<section>
+					<h3>Analysis Format</h3>
+					
+					<ul>
+						<li class="fragment">Custom ECallerHistory Class</li>
+						<li class="fragment">Saved and Loaded using torch.save() and torch.load()</li>
+						<li class="fragment">Great for Inspecting with IPython</li>
+					</ul>
+				</section>
+
+				<section>
+					<h3>Analysis Scripts</h3>
+					<img src="images/scripts.png" alt="Scripts Screenshot">
+					
+				</section>
+			</section>
+
+
+
+
+			<section>
+				<section>
+					<h3>Experiment Architecture</h3>
+					<img src="images/architecture.svg" style="background:whitesmoke">
+					<aside class="notes">
+						+ Main = Gatherer + Trainer
+						+ Gatherer starts E and communicates with it using named pipes.
+						+ Gatherer sends proof attempts to trainer
+						+ Trainer sends latest policy to gatherer
+						+ Policy saved to disk.
+						+ At test time, only the "gatherer" is used.
+					</aside>
+				</section>
+
+				<section>
+					<h3>Approaches Compared</h3>
+					<ul class="smallerfont">
+						<li class="fragment" style="margin-bottom:10px;line-height:1.3em;">
+							<span class="green" style="text-decoration:underline">--auto</span>:
+							<span class="smallfont">E's mode that analyzes a problem to choose a fixed
+								heuristic</span>
+						</li>
+						<li class="fragment" style="margin-bottom:10px;line-height:1.3em;">
+							<span class="green" style="text-decoration:underline">Round Robin</span>:
+							<span class="smallfont">
+								A round-robin schedule over the 20 chosen CEFs
+								<br><span class="red">(A normal E heuristic with all ones for weights)</span>
+							</span>
+						</li>
+						<li class="fragment" style="margin-bottom:10px;line-height:1.3em;">
+							<span class="green" style="text-decoration:underline">Learned Categorical</span>:
+							<span class="smallfont">
+								Randomly samples from a learned categorical distribution
+								<br><span class="red">(Ignores the RL state entirely)</span>
+							</span>
+						</li>
+						<li class="fragment" style="margin-bottom:10px;line-height:1.3em;">
+							<span class="green" style="text-decoration:underline">Distilled Categorical</span>:
+							<span class="smallfont">
+								The previous policy reduced into a standard E heuristic.
+								<br><span class="red">(Removes the randomness and named pipe overhead)</span>
+							</span>
+						</li>
+						<li class="fragment" style="margin-bottom:10px;line-height:1.3em;">
+							<span class="green" style="text-decoration:underline">Neural Network</span>:
+							<span class="smallfont">A shallow (3-layer) neural network policy</span>
+						</li>
+					</ul>
+
+					<aside class="notes">
+						(READ AND DESCRIBE SLIDE.)
+					</aside>
+
+				</section>
+
+				<section>
+					<h3>Experiment Details</h3>
+					<ul class="smallerfont">
+						<li class="fragment">CPU Limit for proof attempts: <span class="green">60 seconds</span></li>
+						<li class="fragment"><span class="green">75 seconds</span> were given when testing the RL models
+							to account for latency caused by the named pipe communication</li>
+					</ul>
+					<aside class="notes">
+						(READ AND DESCRIBE SLIDE.)
+					</aside>
+				</section>
+
+				<section>
+					<h3>Results on MPTPTP2078 Dataset</h3>
+					<table style="font-size:0.7em;">
+						<thead>
+							<tr>
+								<th></th>
+								<th style="text-align:right"><span class="green">--auto</span></th>
+								<th style="text-align:right"><span class="green">Round Robin</span></th>
+								<th style="text-align:right"><span class="green">Learned Categorical</span></th>
+								<th style="text-align:right"><span class="green">Distilled Categorical</span></th>
+								<th style="text-align:right"><span class="green">Neural Network</span></th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr class="fragment">
+								<td style="text-align:left"><span class="green">Problems Proved</span></td>
+								<td style="text-align:right">228.2</td>
+								<td style="text-align:right">232.0</td>
+								<td style="text-align:right">231.6</td>
+								<td style="text-align:right"><span class="green">232.2</span></td>
+								<td style="text-align:right">231.3</td>
+							</tr>
+							<tr class="fragment">
+								<td style="text-align:left"><span class="green">Given Clauses</span></td>
+								<td style="text-align:right">4407.8</td>
+								<td style="text-align:right">2329.0</td>
+								<td style="text-align:right">2377.4</td>
+								<td style="text-align:right">2262.6</td>
+								<td style="text-align:right"><span class="green">2013.0</span></td>
+							</tr>
+							<tr class="fragment">
+								<td style="text-align:left"><span class="green">Fewer Given Clauses than --auto</span>
+								</td>
+								<td style="text-align:right">0</td>
+								<td style="text-align:right">1895.6</td>
+								<td style="text-align:right">1743.6</td>
+								<td style="text-align:right"><span class="green">1899.0</span></td>
+								<td style="text-align:right">1897.6</td>
+							</tr>
+						</tbody>
+					</table>
+					<aside class="notes">
+						+ 5 fold cross-validation averages presented.
+
+						The first thing we looked at was the number of problems solved by each approach (averaged across the 5 folds).
+						They all solved roughly the same number of problems, with the distilled categorical model solving the most.
+
+						Next we looked at the number of given clauses it took to find the proofs that that approach found.
+						The neural network policy found proofs with the fewest given clauses on average.
+						This suggests that it may be searching for proofs more efficiently than the other approaches.
+
+						Finally, for each problem solved by both auto and the other approaches, 
+						we looked at how many fewer given clauses each approach took to find a proof.
+					</aside>
+
+				</section>
+
+				<section>
+					<h3>Analysis of Actor
+						<span class="green">(MPT1152+1.p)</span>
+					</h3>
+					<div class="row" style="justify-content: space-around;opacity:0.8;">
+						<img class="fragment" src="images/actor1.png" style="scale:0.95;">
+						<img class="fragment" src="images/actor2.png" style="scale:0.95;">
+					</div>
+					<aside class="notes">
+						This graph shows the probability of each CEF being selected by the actor from the initial state of a particular problem.
+						The x-axis here is training time.
+						As you can see, the actor learns to heavily prefer one CEF to use at the beginning of the proof attempt.
+
+						This second graph shows the probability of each CEF being selected by the actor during a proof attempt using the fully trained model.
+						The x-axis here is therefore the given clause selection index.
+
+						As you can see, while the actor learns to heavily prefer one clause for the beginning of a proof attempt,
+						it also learns to be more "fair" in its action choices as a proof attempt proceeds.
+					</aside>
+
+				</section>
+
+				<section>
+					<h3>Analysis of Critic</h3>
+					<div class="row">
+						<img src="images/critic.png">
+					</div>
+					<aside class="notes">
+						These histograms show the critic evaluation of the initial states of the problems in the MPTPTP2078 dataset.
+						The green histogram shows the critic evaluation for problems that were able to be solved
+						and the red histogram shows the critic evaluation for problems that were not able to be solved.
+						
+						As shown by the rightward shift of the green histogram, the critic has learned 
+						something about the likelihood of finding a proof even from the initial state.
+					</aside>
+				</section>
+			</section>
+
+
+			<section>
+				<h3>Future Research</h3>
+				<ul>
+					<li class="fragment">Use the critic inside E with Monte-Carlo Tree Search</li>
+					<li class="fragment">If that works well, learn actor and critic using MCTS as in
+						AlphaGo/AlphaZero/MuZero</li>
+				</ul>
+				<aside class="notes"></aside>
+			</section>
+
+			<section>
+				<h3>Possible Framework Enhancements</h3>
+				<ul>
+					<li class="fragment">General code cleaning <br>(make the code more modular, etc)</li><br>
+					<li class="fragment">Add explicit support for other <br>state, action, and reward representations</li><br>
+					<li class="fragment">Add explicit support for other theorem provers</li>
+				</ul>
+			</section>
+
+
+			<section>
+				<h3>Thanks for listening</h3>
+				<em
+					class="green">Questions?</em>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+				<em class="green">Suggestions?</em><br>
+			</section>
+
+		</div>
+	</div>
+
+	<script src="js/reveal.js"></script>
+
+	<script>
+		// More info about config & dependencies:
+		// - https://github.com/hakimel/reveal.js#configuration
+		// - https://github.com/hakimel/reveal.js#dependencies
+		Reveal.initialize({
+			hash: true,
+			math: {
+				mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js',
+				config: 'TeX-AMS_HTML-full', // See http://docs.mathjax.org/en/latest/config-files.html
+				// pass other options into `MathJax.Hub.Config()`
+				TeX: { Macros: { RR: "{\\bf R}" } }
+			},
+
+			dependencies: [
+				{ src: 'plugin/markdown/marked.js' },
+				{ src: 'plugin/markdown/markdown.js' },
+				{ src: 'plugin/highlight/highlight.js' },
+				{ src: 'plugin/notes/notes.js', async: true },
+				{ src: 'plugin/math/math.js', async: true }
+			]
+		});
+
+
+		document.addEventListener("keypress", function (e) {
+			if (e.key == 'u') {
+				document.querySelector("#outline").classList.add("floatingOutline")
+			}
+		})
+
+	</script>
+</body>
+
+</html>
