@@ -149,7 +149,7 @@
 	
 					<div class="row">
 						<textarea class="fragment" cols="50" rows="7" style="overflow: hidden;">
-	Example "heuristic" in E's --auto mode:
+	Example "heuristic" in E:
 	
 	10 * Clauseweight(PreferGoals,1,1,1),
 	10 * Clauseweight(PreferNonGoals,1,1,1),
@@ -191,34 +191,43 @@
 						</li>
 						<li class="fragment">Goal: <span class="green">Maximize expected future discounted
 								rewards</span></li>
-						<li class="fragment" style="line-height: 2.1em;">Policy Gradient Loss:
-							$\displaystyle\frac{1}{T}\sum_{t=1}^T [$
+						<li class="fragment">Policy Gradient Loss:<br>
+							<span class="smallfont">
+								average(
+								<span class="green fragment">negative log likelihood of </span>
+								<span class="blue fragment">actions taken</span> *
+								<span class="red fragment">returns</span>)
+							</span>
+							<!-- $\displaystyle\frac{1}{T}\sum_{t=1}^T [$
 							<span class="green fragment"
 								style="padding:1em 0em;font-size:0.8em;">$-\log{(\pi(s_t,a_t))}$</span>
 							<span class="fragment">
 								$\cdot $
 								<span class="blue">$R_t$</span>
 							</span>
-							$]$
+							$]$ -->
 						</li>
 
 
-						<li class="fragment" style="line-height: 2.1em;">Reducing Variance:
-							$\displaystyle\frac{1}{T}\sum_{t=1}^T [$
+						<li class="fragment">Reducing Variance:<br>
+							<span class="smallfont">
+								average(
+								<span class="green fragment">negative log likelihood of </span>
+								<span class="blue fragment">actions taken</span> *
+								<span class="yellow fragment">advantage</span>)
+							</span>
+							<span class="fragment smallfont">
+								<span class="yellow">advantage</span> = <span class="red">returns</span> - predicted_returns
+							</span>
+
+							<!-- $\displaystyle\frac{1}{T}\sum_{t=1}^T [$
 							<span class="green fragment"
 								style="padding:1em 0em;font-size:0.8em;">$-\log{(\pi(s_t,a_t))}$</span>
 							<span class="fragment">
 								$\cdot $
 								<span class="red">$A_t$</span>
 							</span>
-							$]$
-						</li>
-						<li class="fragment">
-							<span class="red">
-								$A_t$
-							</span>
-							$=$
-							<span class="blue">$R_t$</span> $- V(s_t)$
+							$]$ -->
 						</li>
 					</ul>
 
@@ -237,17 +246,23 @@
 						<li class="fragment">Main Idea: <span class="green">Learn from the same data multiple times in
 								mini-batches <br>without drastically affecting the current policy.</span></li>
 						<span class="fragment">
-							<li>A special loss limits the gradient so that 
-								<span class="green">$0.8\pi_{old}(s,a) \leq \pi(s,a) \leq 1.2\pi_{old}(s,a)$</span>
+							<li>A special loss limits the gradient so that:<br>
+								$(1-\epsilon)$
+								<span class="red">$\pi_{old}(s,a)$</span> 
+								$\leq$
+								<span class="green">$\pi(s,a)$</span> 
+								$\leq$
+								$(1+\epsilon)$
+								<span class="red">$\pi_{old}(s,a)$</span>
 							</li>
-							<ul>
+							<!-- <ul>
 								<li>$r_t(\theta) = \frac{\pi_{\theta}(a_t | s_t)}{\pi_{\theta_{old}}(a_t |
 									s_t)}$</li>
 								<li>$L_{actor}(\theta) = \displaystyle\frac{1}{T}\sum_{t=1}^T [min($ 
 									<span class="green">$r_t(\theta)A_t$</span> $, $ 
 									<span class="red">$clip(r_t(\theta),1-\epsilon, 1+\epsilon)A_t$</span> $)]$
 								</li>
-							</ul>
+							</ul> -->
 						</span>
 					</ul>
 					<aside class="notes">
@@ -291,11 +306,25 @@
 
 			<section>
 				<section>
+					<h3>Experiment Architecture</h3>
+					<img src="images/architecture.svg" style="background:whitesmoke">
+					<aside class="notes">
+						+ Main = Gatherer + Trainer
+						+ Gatherer starts E and communicates with it using named pipes.
+						+ Gatherer sends proof attempts to trainer
+						+ Trainer sends latest policy to gatherer
+						+ Policy saved to disk.
+						+ At test time, only the "gatherer" is used.
+					</aside>
+				</section>
+
+				<section>
 					<h3>The Framework</h3>
 					<ol>
 						<li class="fragment">One main script for training/testing</li>
-						<li class="fragment">Terminal Dashboard for Training</li>
-						<li class="fragment">Format and Scripts for Analyzing Results</li>
+						<li class="fragment">A terminal dashboard for training</li>
+						<li class="fragment">A format for storing training/testing results</li>
+						<li class="fragment">Scripts for analyzing results</li>
 					</ol>
 				</section>
 				
@@ -347,34 +376,39 @@
 						
 				</section>
 
+
+
 				<section>
-					<h3>Dashboard</h3>
-					
-					<ul>
-						<li class="fragment">Rich Python Library</li>
-						<li class="fragment">Termplotlib for plotting</li>
-					</ul>
+					<h3>Terminal Dashboard</h3>
+					<img src="images/dashboard.png" alt="Dashboard Screenshot">
 				</section>
 
 				<section>
-					<h3>Terminal Dashboard (screenshot)</h3>
-					<img src="images/dashboard.png" alt="Dashboard Screenshot">
+					<h3>Dashboard Implementation</h3>
+					<ul class="smallfont">
+						<li class="fragment"><a href="https://github.com/Textualize/rich">Rich</a> Python library</li>
+						<li class="fragment">Termplotlib for plotting</li>
+						<li class="fragment">Panels are implemented as two custom methods:<br>
+							<span class="fragment">
+								(i.e. <span class="green">updateLossGraph()</span> and <span class="blue">getLossGraphPanel()</span>)</li>
+							</span>
+						<li class="fragment">Dashboard <span class="red">render</span> method determines layout of panels</li>
+					</ul>
 				</section>
 
 				<section>
 					<h3>Analysis Format</h3>
 					
-					<ul>
-						<li class="fragment">Custom ECallerHistory Class</li>
-						<li class="fragment">Saved and Loaded using torch.save() and torch.load()</li>
-						<li class="fragment">Great for Inspecting with IPython</li>
+					<ul style="font-size:0.9em;">
+						<li class="fragment">Custom Python class "ECallerHistory"</li>
+						<li class="fragment">Saved and loaded using <span class="green">torch.save()</span> and <span class="green">torch.load()</span></li>
+						<li class="fragment">Great for inspecting with <span class="blue">IPython</span></li>
 					</ul>
 				</section>
 
 				<section>
 					<h3>Analysis Scripts</h3>
 					<img src="images/scripts.png" alt="Scripts Screenshot">
-					
 				</section>
 			</section>
 
@@ -382,19 +416,6 @@
 
 
 			<section>
-				<section>
-					<h3>Experiment Architecture</h3>
-					<img src="images/architecture.svg" style="background:whitesmoke">
-					<aside class="notes">
-						+ Main = Gatherer + Trainer
-						+ Gatherer starts E and communicates with it using named pipes.
-						+ Gatherer sends proof attempts to trainer
-						+ Trainer sends latest policy to gatherer
-						+ Policy saved to disk.
-						+ At test time, only the "gatherer" is used.
-					</aside>
-				</section>
-
 				<section>
 					<h3>Approaches Compared</h3>
 					<ul class="smallerfont">
